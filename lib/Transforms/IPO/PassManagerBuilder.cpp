@@ -41,6 +41,7 @@
 #include "llvm/Transforms/Scalar/SimpleLoopUnswitch.h"
 #include "llvm/Transforms/Vectorize.h"
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
+#include "llvm/Transforms/Obfuscation/CfgIndirection.h"
 #include "llvm/Transforms/Obfuscation/Flattening.h"
 #include "llvm/Transforms/Obfuscation/Split.h"
 #include "llvm/Transforms/Obfuscation/Substitution.h"
@@ -114,6 +115,9 @@ static cl::opt<bool> Flattening("fla", cl::init(false),
 
 static cl::opt<bool> BogusControlFlow("bcf", cl::init(false),
                                       cl::desc("Enable bogus control flow"));
+
+static cl::opt<bool> CfgIndirect("cfg-indirect", cl::init(false),
+                                      cl::desc("Enable control flow indirection"));
 
 static cl::opt<bool> Substitution("sub", cl::init(false),
                                   cl::desc("Enable instruction substitutions"));
@@ -452,6 +456,7 @@ void PassManagerBuilder::populateModulePassManager(
 
   MPM.add(createSplitBasicBlock(Split));
   MPM.add(createBogus(BogusControlFlow));
+  MPM.add(createCfgIndirect(CfgIndirect));
   MPM.add(createFlattening(Flattening));
   MPM.add(createStringObfuscation(StringObf));
 
