@@ -7,6 +7,10 @@ add_llvm_library(LLVMObfuscation
   Flattening.cpp
   StringObfuscation.cpp
   CfgIndirection.cpp
-  )
 
-add_dependencies(LLVMObfuscation intrinsics_gen)
+  FunctionFilter.cpp
+  FunctionInfo.cpp
+
+  DEPENDS
+  intrinsics_gen
+  )

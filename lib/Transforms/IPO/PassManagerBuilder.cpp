@@ -109,24 +109,24 @@ static cl::opt<std::string> Seed("seed", cl::init(""),
 static cl::opt<bool> StringObf("sobf", cl::init(false),
                                   cl::desc("Enable the string obfuscation"));
 
-// Flags for obfuscation
-static cl::opt<bool> Flattening("fla", cl::init(false),
-                                cl::desc("Enable the flattening pass"));
+// // Flags for obfuscation
+// static cl::opt<bool> Flattening("fla", cl::init(false),
+//                                 cl::desc("Enable the flattening pass"));
 
-static cl::opt<bool> BogusControlFlow("bcf", cl::init(false),
-                                      cl::desc("Enable bogus control flow"));
+// static cl::opt<bool> BogusControlFlow("bcf", cl::init(false),
+//                                       cl::desc("Enable bogus control flow"));
 
-static cl::opt<bool> CfgIndirect("cfg-indirect", cl::init(false),
-                                      cl::desc("Enable control flow indirection"));
+// static cl::opt<bool> CfgIndirect("cfg-indirect", cl::init(false),
+//                                       cl::desc("Enable control flow indirection"));
 
-static cl::opt<bool> Substitution("sub", cl::init(false),
-                                  cl::desc("Enable instruction substitutions"));
+// static cl::opt<bool> Substitution("sub", cl::init(false),
+//                                   cl::desc("Enable instruction substitutions"));
 
 static cl::opt<std::string> AesSeed("aesSeed", cl::init(""),
                                     cl::desc("seed for the AES-CTR PRNG"));
 
-static cl::opt<bool> Split("split", cl::init(false),
-                           cl::desc("Enable basic block splitting"));
+// static cl::opt<bool> Split("split", cl::init(false),
+//                            cl::desc("Enable basic block splitting"));
 
 static cl::opt<bool> EnableNonLTOGlobalsModRef(
     "enable-non-lto-gmr", cl::init(true), cl::Hidden,
@@ -454,11 +454,11 @@ void PassManagerBuilder::populateModulePassManager(
   // Allow forcing function attributes as a debugging and tuning aid.
   MPM.add(createForceFunctionAttrsLegacyPass());
 
-  MPM.add(createSplitBasicBlock(Split));
-  MPM.add(createBogus(BogusControlFlow));
-  MPM.add(createCfgIndirect(CfgIndirect));
-  MPM.add(createFlattening(Flattening));
-  MPM.add(createStringObfuscation(StringObf));
+  // MPM.add(createSplitBasicBlock(Split));
+  // MPM.add(createBogus(BogusControlFlow));
+  // MPM.add(createCfgIndirect(CfgIndirect));
+  // MPM.add(createFlattening(Flattening));
+  // MPM.add(createStringObfuscation(StringObf));
 
   // If all optimizations are disabled, just run the always-inline pass and,
   // if enabled, the function merging pass.
@@ -479,7 +479,7 @@ void PassManagerBuilder::populateModulePassManager(
     else if (GlobalExtensionsNotEmpty() || !Extensions.empty())
       MPM.add(createBarrierNoopPass());
 
-    MPM.add(createSubstitution(Substitution));
+    // MPM.add(createSubstitution(Substitution));
     addExtensionsToPM(EP_EnabledOnOptLevel0, MPM);
 
     // Rename anon globals to be able to export them in the summary.
@@ -729,7 +729,7 @@ void PassManagerBuilder::populateModulePassManager(
   // resulted in single-entry-single-exit or empty blocks. Clean up the CFG.
   MPM.add(createCFGSimplificationPass());
 
-  MPM.add(createSubstitution(Substitution));
+  // MPM.add(createSubstitution(Substitution));
 
   addExtensionsToPM(EP_OptimizerLast, MPM);
 }

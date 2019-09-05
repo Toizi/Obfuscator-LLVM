@@ -92,6 +92,9 @@
 
 #include "llvm/Transforms/Obfuscation/BogusControlFlow.h"
 #include "llvm/Transforms/Obfuscation/Utils.h"
+#include "llvm/Support/RandomNumberGenerator.h"
+#include <memory>
+#include "FunctionFilter.h"
 
 // Stats
 #define DEBUG_TYPE "BogusControlFlow"
@@ -106,8 +109,11 @@ STATISTIC(FinalNumBasicBlocks,  "f. Final number of basic blocks in this module"
 // Options for the pass
 const int defaultObfRate = 30, defaultObfTime = 1;
 
-static cl::opt<int>
-ObfProbRate("bcf_prob", cl::desc("Choose the probability [%] each basic blocks will be obfuscated by the -bcf pass"), cl::value_desc("probability rate"), cl::init(defaultObfRate), cl::Optional);
+static cl::opt<double> BogusRatio{
+    "opaque-ratio",
+    cl::desc(
+        "Only apply the opaque predicate pass on <ratio> of the candidates"),
+    cl::value_desc("ratio"), llvm::cl::init(1.0), llvm::cl::Optional};
 
 static cl::opt<int>
 ObfTimes("bcf_loop", cl::desc("Choose how many time the -bcf pass loop on a function"), cl::value_desc("number of times"), cl::init(defaultObfTime), cl::Optional);
@@ -115,29 +121,48 @@ ObfTimes("bcf_loop", cl::desc("Choose how many time the -bcf pass loop on a func
 namespace {
   struct BogusControlFlow : public FunctionPass {
     static char ID; // Pass identification
-    bool flag;
     BogusControlFlow() : FunctionPass(ID) {}
-    BogusControlFlow(bool flag) : FunctionPass(ID) {this->flag = flag; BogusControlFlow();}
+
+    std::unique_ptr<RandomNumberGenerator> rng;
+    std::unique_ptr<std::uniform_real_distribution<double>> dist;
+    bool doInitialization(Module &M) override {
+      rng = M.createRNG(this);
+      dist.reset(new std::uniform_real_distribution<double>(0.0, 1.0));
+
+      return false;
+    }
+ 
+    void getAnalysisUsage(AnalysisUsage &AU) const override
+    {
+      AU.addRequired<FunctionFilterPass>();
+      AU.addPreserved<FunctionFilterPass>();
+    }
 
     /* runOnFunction
      *
      * Overwrite FunctionPass method to apply the transformation
      * to the function. See header for more details.
      */
-    virtual bool runOnFunction(Function &F){
+    virtual bool runOnFunction(Function &F) override {
+      dbgs() << "BogusControlFlow::runOnFunction: " << F.getName() << "\n";
+      auto function_filter_info =
+          getAnalysis<FunctionFilterPass>().get_functions_info();
       // Check if the percentage is correct
       if (ObfTimes <= 0) {
         errs()<<"BogusControlFlow application number -bcf_loop=x must be x > 0";
-		return false;
+        return false;
       }
 
-      // Check if the number of applications is correct
-      if ( !((ObfProbRate > 0) && (ObfProbRate <= 100)) ) {
-        errs()<<"BogusControlFlow application basic blocks percentage -bcf_prob=x must be 0 < x <= 100";
-		return false;
+      // check whitelist through function filter file
+      if (!function_filter_info->is_function(&F)
+        && (*dist)(*rng) > BogusRatio.getValue())
+      {
+        dbgs() << "  not taken due to ratio\n";
+        return false;
       }
+
       // If fla annotations
-      if(toObfuscate(flag,&F,"bcf")) {
+      if(toObfuscate(true, &F, "bcf")) {
         bogus(F);
         doF(*F.getParent());
         return true;
@@ -152,14 +177,8 @@ namespace {
       int NumBasicBlocks = 0;
       bool firstTime = true; // First time we do the loop in this function
       bool hasBeenModified = false;
-      DEBUG_WITH_TYPE("opt", errs() << "bcf: Started on function " << F.getName() << "\n");
-      DEBUG_WITH_TYPE("opt", errs() << "bcf: Probability rate: "<< ObfProbRate<< "\n");
-      if(ObfProbRate < 0 || ObfProbRate > 100){
-        DEBUG_WITH_TYPE("opt", errs() << "bcf: Incorrect value,"
-            << " probability rate set to default value: "
-            << defaultObfRate <<" \n");
-        ObfProbRate = defaultObfRate;
-      }
+      dbgs() << "opaque: Started on function " << F.getName() << "\n";
+      DEBUG_WITH_TYPE("opt", errs() << "bcf: Probability rate: "<< BogusRatio << "\n");
       DEBUG_WITH_TYPE("opt", errs() << "bcf: How many times: "<< ObfTimes<< "\n");
       if(ObfTimes <= 0){
         DEBUG_WITH_TYPE("opt", errs() << "bcf: Incorrect value,"
@@ -186,21 +205,15 @@ namespace {
           while(!basicBlocks.empty()){
             NumBasicBlocks ++;
             // Basic Blocks' selection
-            if((int)llvm::cryptoutils->get_range(100) <= ObfProbRate){
-              DEBUG_WITH_TYPE("opt", errs() << "bcf: Block "
-                  << NumBasicBlocks <<" selected. \n");
-              hasBeenModified = true;
-              ++NumModifiedBasicBlocks;
-              NumAddedBasicBlocks += 3;
-              FinalNumBasicBlocks += 3;
-              // Add bogus flow to the given Basic Block (see description)
-              BasicBlock *basicBlock = basicBlocks.front();
-              addBogusFlow(basicBlock, F);
-            }
-            else{
-              DEBUG_WITH_TYPE("opt", errs() << "bcf: Block "
-                  << NumBasicBlocks <<" not selected.\n");
-            }
+            DEBUG_WITH_TYPE("opt", errs() << "bcf: Block "
+                << NumBasicBlocks <<" selected. \n");
+            hasBeenModified = true;
+            ++NumModifiedBasicBlocks;
+            NumAddedBasicBlocks += 3;
+            FinalNumBasicBlocks += 3;
+            // Add bogus flow to the given Basic Block (see description)
+            BasicBlock *basicBlock = basicBlocks.front();
+            addBogusFlow(basicBlock, F);
             // remove the block from the list
             basicBlocks.pop_front();
 
@@ -601,12 +614,9 @@ namespace {
 }
 
 char BogusControlFlow::ID = 0;
-static RegisterPass<BogusControlFlow> X("boguscf", "inserting bogus control flow");
+static RegisterPass<BogusControlFlow> X("opaque-predicate", "inserting bogus control flow");
 
-Pass *llvm::createBogus() {
+Pass *llvm::createBogusPass() {
   return new BogusControlFlow();
 }
 
-Pass *llvm::createBogus(bool flag) {
-  return new BogusControlFlow(flag);
-}

@@ -49,6 +49,7 @@
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Vectorize.h"
+#include "llvm/Transforms/Obfuscation.h"
 #include <cstdlib>
 
 namespace {
@@ -206,6 +207,13 @@ namespace {
       (void) llvm::createFloat2IntPass();
       (void) llvm::createEliminateAvailableExternallyPass();
       (void) llvm::createScalarizeMaskedMemIntrinPass();
+
+      (void) llvm::createCfgIndirectPass();
+      (void) llvm::createBogusPass();
+      (void) llvm::createFlatteningPass();
+      (void) llvm::createSplitBasicBlockPass();
+      (void) llvm::createStringObfuscationPass();
+      (void) llvm::createSubstitutionPass();
 
       (void)new llvm::IntervalPartition();
       (void)new llvm::ScalarEvolutionWrapperPass();

@@ -28,12 +28,7 @@ namespace llvm {
         class StringObfuscationPass: public llvm::ModulePass {
                 public:
                 static char ID; // pass identification
-                bool is_flag = false;
                 StringObfuscationPass() : ModulePass(ID) {}
-                StringObfuscationPass(bool flag) : ModulePass(ID)
-                {
-                    is_flag = flag;
-                }
 
                 /*virtual bool doInitialization(Module &) {
                         multicompiler::ShuffleStackFrames = true;
@@ -50,8 +45,6 @@ namespace llvm {
                 }*/
 
                 virtual bool runOnModule(Module &M) {
-                        if(!is_flag)
-                            return false;
                         std::vector<GlobalVariable*> toDelConstGlob;
                         //std::vector<GlobalVariable*> encGlob;
                         std::vector<encVar*> encGlob;
@@ -283,6 +276,6 @@ namespace llvm {
 char StringObfuscationPass::ID = 0;
 static RegisterPass<StringObfuscationPass> X("GVDiv", "Global variable (i.e., const char*) diversification pass", false, true);
 
-Pass * llvm::createStringObfuscation(bool flag) {
-    return new StringObfuscationPass(flag);
+Pass * llvm::createStringObfuscationPass() {
+    return new StringObfuscationPass();
 }

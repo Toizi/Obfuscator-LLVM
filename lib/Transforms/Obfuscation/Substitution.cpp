@@ -18,6 +18,9 @@
 #include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/IR/Intrinsics.h"
 
+#include "llvm/Support/RandomNumberGenerator.h"
+#include <memory>
+#include "FunctionFilter.h"
 #define DEBUG_TYPE "substitution"
 
 #define NUMBER_ADD_SUBST 4
@@ -30,6 +33,11 @@ static cl::opt<int>
 ObfTimes("sub_loop",
          cl::desc("Choose how many time the -sub pass loops on a function"),
          cl::value_desc("number of times"), cl::init(1), cl::Optional);
+static cl::opt<double> SubstitutionRatio{
+    "substitution-ratio",
+    cl::desc(
+        "Only apply the substitution pass on <ratio> of the candidates"),
+    cl::value_desc("ratio"), llvm::cl::init(1.0), llvm::cl::Optional};
 
 
 // Stats
@@ -52,12 +60,8 @@ struct Substitution : public FunctionPass {
   void (Substitution::*funcAnd[NUMBER_AND_SUBST])(BinaryOperator *bo);
   void (Substitution::*funcOr[NUMBER_OR_SUBST])(BinaryOperator *bo);
   void (Substitution::*funcXor[NUMBER_XOR_SUBST])(BinaryOperator *bo);
-  bool flag;
 
-  Substitution() : FunctionPass(ID) {}
-
-  Substitution(bool flag) : FunctionPass(ID) {
-    this->flag = flag;
+  Substitution() : FunctionPass(ID) {
     funcAdd[0] = &Substitution::addNeg;
     funcAdd[1] = &Substitution::addDoubleNeg;
     funcAdd[2] = &Substitution::addRand;
@@ -77,8 +81,23 @@ struct Substitution : public FunctionPass {
     funcXor[1] = &Substitution::xorSubstitutionRand;
   }
 
-  bool runOnFunction(Function &F);
+  bool runOnFunction(Function &F) override;
   bool substitute(Function *f);
+
+  std::unique_ptr<RandomNumberGenerator> rng;
+  std::unique_ptr<std::uniform_real_distribution<double>> dist;
+  bool doInitialization(Module &M) override {
+    rng = M.createRNG(this);
+    dist.reset(new std::uniform_real_distribution<double>(0.0, 1.0));
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override
+  {
+    AU.addRequired<FunctionFilterPass>();
+    AU.addPreserved<FunctionFilterPass>();
+  }
 
   void addNeg(BinaryOperator *bo);
   void addDoubleNeg(BinaryOperator *bo);
@@ -102,18 +121,27 @@ struct Substitution : public FunctionPass {
 
 char Substitution::ID = 0;
 static RegisterPass<Substitution> X("substitution", "operators substitution");
-Pass *llvm::createSubstitution(bool flag) { return new Substitution(flag); }
+Pass *llvm::createSubstitutionPass() { return new Substitution(); }
 
 bool Substitution::runOnFunction(Function &F) {
+  auto function_filter_info =
+      getAnalysis<FunctionFilterPass>().get_functions_info();
    // Check if the percentage is correct
    if (ObfTimes <= 0) {
      errs()<<"Substitution application number -sub_loop=x must be x > 0";
 	 return false;
    }
 
+  // check whitelist through function filter file
+  if (!function_filter_info->is_function(&F)
+    && (*dist)(*rng) > SubstitutionRatio.getValue())
+  {
+    return false;
+  }
+
   Function *tmp = &F;
   // Do we obfuscate
-  if (toObfuscate(flag, tmp, "sub")) {
+  if (toObfuscate(true, tmp, "sub")) {
     substitute(tmp);
 	return true;
   }

@@ -3,7 +3,6 @@
 
 #include "llvm/ADT/Statistic.h"
 STATISTIC(IndirectCount, "Number of direct jumps transformed to indirect ones");
-STATISTIC(SkippedCount, "Number of skipped jumps");
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -14,8 +13,10 @@ STATISTIC(SkippedCount, "Number of skipped jumps");
 #include "llvm/Support/RandomNumberGenerator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Scalar.h"
 
 #include <memory>
+#include "FunctionFilter.h"
 #include "llvm/Transforms/Obfuscation/CfgIndirection.h"
 
 using namespace llvm;
@@ -24,17 +25,18 @@ static cl::opt<double> CfgIndirectRatio{
     cl::desc(
         "Only apply the cfg indirection pass on <ratio> of the candidates"),
     cl::value_desc("ratio"), llvm::cl::init(1.0), llvm::cl::Optional};
+static cl::opt<bool> CfgIndirectReg2mem("cfg-indirect-reg2mem", cl::init(false),
+                    cl::desc("Run reg2mem prior to running cfg indirection"));
 
 namespace {
-class CfgIndirection : public BasicBlockPass {
+class CfgIndirection : public FunctionPass {
 public:
   static char ID;
   bool is_enabled;
   std::unique_ptr<RandomNumberGenerator> rng;
   std::unique_ptr<std::uniform_real_distribution<double>> dist;
 
-  CfgIndirection() : BasicBlockPass(ID) {}
-  CfgIndirection(bool is_enabled) : BasicBlockPass(ID) { this->is_enabled = is_enabled; CfgIndirection(); }
+  CfgIndirection() : FunctionPass(ID) {}
 
   bool doInitialization(Module &M) override {
     rng = M.createRNG(this);
@@ -43,18 +45,42 @@ public:
     return false;
   }
 
-  bool runOnBasicBlock(BasicBlock &BB) override {
-    if (!is_enabled)
-        return false;
+  void getAnalysisUsage(AnalysisUsage &AU) const override
+  {
+    AU.addRequired<FunctionFilterPass>();
+    AU.addPreserved<FunctionFilterPass>();
+  }
+
+  bool runOnFunction(Function &F) override {
+    dbgs() << "CfgIndirection: runOnFunction " << F.getName() << '\n';
+    auto function_filter_info =
+        getAnalysis<FunctionFilterPass>().get_functions_info();
+    // check whitelist through function filter file
+    if (!function_filter_info->is_function(&F)
+      && (*dist)(*rng) > CfgIndirectRatio.getValue())
+    {
+      return false;
+    }
+    auto MP = F.getParent();
+    auto &M = *MP;
+    auto Reg2Mem = std::unique_ptr<FunctionPass>(createDemoteRegisterToMemoryPass());
+    Reg2Mem->doInitialization(M);
+    if (CfgIndirectReg2mem) {
+      Reg2Mem->runOnFunction(F);
+    }
+    bool modified = false;
+    for (auto &BB : F) {
+      modified |= runOnBasicBlock(BB);
+    }
+    Reg2Mem->doFinalization(M);
+    return modified;
+  }
+
+  bool runOnBasicBlock(BasicBlock &BB) {
     bool modified = false;
     TerminatorInst *t = BB.getTerminator();
     SmallVector<std::pair<BasicBlock *, Value *>, 2> destinations;
     if (auto *branch = dyn_cast<BranchInst>(t)) {
-
-      if ((*dist)(*rng) > CfgIndirectRatio.getValue()) {
-        ++SkippedCount;
-        return modified;
-      }
 
       IndirectBrInst *inst = nullptr;
       bool is_conditional = branch->isConditional();
@@ -105,12 +131,8 @@ public:
 
 
 char CfgIndirection::ID = 0;
-static RegisterPass<CfgIndirection> X("cfg-indirection", "control flow indirection");
+static RegisterPass<CfgIndirection> X("cfg-indirect", "control flow indirection");
 
-Pass *llvm::createCfgIndirect() {
+Pass *llvm::createCfgIndirectPass() {
   return new CfgIndirection();
-}
-
-Pass *llvm::createCfgIndirect(bool is_enabled) {
-  return new CfgIndirection(is_enabled);
 }

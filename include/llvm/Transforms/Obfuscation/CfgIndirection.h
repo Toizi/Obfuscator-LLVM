@@ -42,8 +42,7 @@ using namespace llvm;
 
 // Namespace
 namespace llvm {
-	Pass *createCfgIndirect ();
-	Pass *createCfgIndirect (bool flag);
+	Pass *createCfgIndirectPass ();
 }
 #endif
 

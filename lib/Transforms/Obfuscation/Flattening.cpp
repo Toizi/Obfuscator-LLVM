@@ -15,40 +15,71 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/CryptoUtils.h"
 
+#include "llvm/Support/RandomNumberGenerator.h"
+#include <memory>
+#include "FunctionFilter.h"
 #define DEBUG_TYPE "flattening"
 
 using namespace llvm;
 
 // Stats
 STATISTIC(Flattened, "Functions flattened");
+static cl::opt<double> FlattenRatio{
+    "flatten-ratio",
+    cl::desc(
+        "Only apply the flattening pass on <ratio> of the candidates"),
+    cl::value_desc("ratio"), llvm::cl::init(1.0), llvm::cl::Optional};
 
 namespace {
 struct Flattening : public FunctionPass {
   static char ID;  // Pass identification, replacement for typeid
-  bool flag;
 
   Flattening() : FunctionPass(ID) {}
-  Flattening(bool flag) : FunctionPass(ID) { this->flag = flag; }
 
-  bool runOnFunction(Function &F);
+  bool runOnFunction(Function &F) override;
   bool flatten(Function *f);
+
+  std::unique_ptr<RandomNumberGenerator> rng;
+  std::unique_ptr<std::uniform_real_distribution<double>> dist;
+  bool doInitialization(Module &M) override {
+    rng = M.createRNG(this);
+    dist.reset(new std::uniform_real_distribution<double>(0.0, 1.0));
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override
+  {
+    AU.addRequired<FunctionFilterPass>();
+    AU.addPreserved<FunctionFilterPass>();
+  }
+
 };
 }
 
-char Flattening::ID = 0;
-static RegisterPass<Flattening> X("flattening", "Call graph flattening");
-Pass *llvm::createFlattening(bool flag) { return new Flattening(flag); }
 
 bool Flattening::runOnFunction(Function &F) {
+  auto function_filter_info =
+      getAnalysis<FunctionFilterPass>().get_functions_info();
+
+  // check whitelist through function filter file
+  if (!function_filter_info->is_function(&F)
+    && (*dist)(*rng) > FlattenRatio.getValue())
+  {
+    return false;
+  }
+
   Function *tmp = &F;
   // Do we obfuscate
-  if (toObfuscate(flag, tmp, "fla")) {
+  bool modified = false;
+  if (toObfuscate(true, tmp, "fla")) {
     if (flatten(tmp)) {
       ++Flattened;
+      modified = true;
     }
   }
 
-  return false;
+  return modified;
 }
 
 bool Flattening::flatten(Function *f) {
@@ -239,4 +270,11 @@ bool Flattening::flatten(Function *f) {
   fixStack(f);
 
   return true;
+}
+
+char Flattening::ID = 0;
+static RegisterPass<Flattening> X("flattening", "Call graph flattening");
+
+Pass *llvm::createFlatteningPass() {
+  return new Flattening();
 }

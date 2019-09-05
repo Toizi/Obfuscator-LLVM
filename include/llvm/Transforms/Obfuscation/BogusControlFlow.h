@@ -42,8 +42,7 @@ using namespace llvm;
 
 // Namespace
 namespace llvm {
-	Pass *createBogus ();
-	Pass *createBogus (bool flag);
+	Pass *createBogusPass ();
 }
 #endif
 
