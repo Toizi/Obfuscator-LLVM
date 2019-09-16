@@ -52,7 +52,6 @@ public:
   }
 
   bool runOnFunction(Function &F) override {
-    dbgs() << "CfgIndirection: runOnFunction " << F.getName() << '\n';
     auto function_filter_info =
         getAnalysis<FunctionFilterPass>().get_functions_info();
     // check whitelist through function filter file
@@ -61,6 +60,7 @@ public:
     {
       return false;
     }
+    dbgs() << "CfgIndirection: Transforming " << F.getName() << '\n';
     auto MP = F.getParent();
     auto &M = *MP;
     auto Reg2Mem = std::unique_ptr<FunctionPass>(createDemoteRegisterToMemoryPass());

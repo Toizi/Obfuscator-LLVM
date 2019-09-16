@@ -139,11 +139,11 @@ bool Substitution::runOnFunction(Function &F) {
     return false;
   }
 
-  Function *tmp = &F;
   // Do we obfuscate
-  if (toObfuscate(true, tmp, "sub")) {
-    substitute(tmp);
-	return true;
+  if (toObfuscate(true, &F, "sub")) {
+    dbgs() << "Substitution on " << F.getName() << "\n";
+    substitute(&F);
+    return true;
   }
 
   return false;
