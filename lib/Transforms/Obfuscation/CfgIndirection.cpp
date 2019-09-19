@@ -13,6 +13,7 @@ STATISTIC(IndirectCount, "Number of direct jumps transformed to indirect ones");
 #include "llvm/Support/RandomNumberGenerator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
 #include "llvm/Transforms/Scalar.h"
 
 #include <memory>
@@ -33,13 +34,13 @@ class CfgIndirection : public FunctionPass {
 public:
   static char ID;
   bool is_enabled;
-  std::unique_ptr<RandomNumberGenerator> rng;
+  std::unique_ptr<std::mt19937> rng;
   std::unique_ptr<std::uniform_real_distribution<double>> dist;
 
   CfgIndirection() : FunctionPass(ID) {}
 
   bool doInitialization(Module &M) override {
-    rng = M.createRNG(this);
+    rng.reset(new std::mt19937{ObfuscationSeed.getValue()});
     dist.reset(new std::uniform_real_distribution<double>(0.0, 1.0));
 
     return false;

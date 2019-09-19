@@ -39,10 +39,10 @@ struct Flattening : public FunctionPass {
   bool runOnFunction(Function &F) override;
   bool flatten(Function *f);
 
-  std::unique_ptr<RandomNumberGenerator> rng;
+  std::unique_ptr<std::mt19937> rng;
   std::unique_ptr<std::uniform_real_distribution<double>> dist;
   bool doInitialization(Module &M) override {
-    rng = M.createRNG(this);
+    rng.reset(new std::mt19937{ObfuscationSeed.getValue()});
     dist.reset(new std::uniform_real_distribution<double>(0.0, 1.0));
 
     return false;

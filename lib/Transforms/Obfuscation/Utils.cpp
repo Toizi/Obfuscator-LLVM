@@ -146,3 +146,9 @@ bool toObfuscate(bool flag, Function *f, std::string attribute) {
   return false;
 }
 
+
+cl::opt<int> ObfuscationSeed{
+    "obfuscation-seed",
+    cl::desc(
+        "Use this value to seed the rng for random function selection"),
+    cl::value_desc("seed"), llvm::cl::init(1), llvm::cl::Optional};

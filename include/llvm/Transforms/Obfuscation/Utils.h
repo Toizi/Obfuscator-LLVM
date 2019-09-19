@@ -12,4 +12,6 @@ void fixStack(Function *f);
 std::string readAnnotate(Function *f);
 bool toObfuscate(bool flag, Function *f, std::string attribute);
 
+extern cl::opt<int> ObfuscationSeed;
+
 #endif
