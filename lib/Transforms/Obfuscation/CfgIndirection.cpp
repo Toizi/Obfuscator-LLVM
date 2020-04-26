@@ -95,6 +95,10 @@ public:
           errs() << "error: CfgIndirection not possible since input contains "
                     "phi nodes.\n"
                     "Convert the input to non-SSA form using reg2mem\n";
+          errs() << "BasicBlock:\n";
+          suc->print(errs());
+          errs() << "in function: " << suc->getParent()->getName()
+                 << "\n";
           exit(1);
         }
 
