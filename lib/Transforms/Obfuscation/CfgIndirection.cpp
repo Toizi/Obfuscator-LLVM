@@ -92,6 +92,12 @@ public:
 
         // sanity check. input must not be in SSA form
         if (isa<PHINode>(suc->front())) {
+          errs() << "skipping BB since there is a phi node\n";
+          BB.print(errs());
+          errs() << "\n";
+          return false;
+
+          // old response
           errs() << "error: CfgIndirection not possible since input contains "
                     "phi nodes.\n"
                     "Convert the input to non-SSA form using reg2mem\n";
